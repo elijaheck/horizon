@@ -126,7 +126,7 @@ fn handle(socket: &Path, method: &str, params: &Value) -> Result<Value, (i64, St
                 line_for(name, &args).and_then(|line| crate::control::request(socket, &line));
             let (reply, error) = match reply {
                 Ok(v) => {
-                    let error = v.get("error").is_some();
+                    let error = crate::control::reply_error(&v).is_some();
                     (v, error)
                 }
                 Err(e) => (json!({ "error": e }), true),

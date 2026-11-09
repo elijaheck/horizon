@@ -52,14 +52,14 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("mcp") => horizon_body::mcp::serve(&socket),
         Some(cmd) => {
             let reply = horizon_body::control::request(&socket, &words.join(" "))?;
-            if cmd == "chat-log" && reply.get("error").is_none() {
+            if cmd == "chat-log" && horizon_body::control::reply_error(&reply).is_none() {
                 for line in reply["chat"].as_array().into_iter().flatten() {
                     println!("{}", line.as_str().unwrap_or_default());
                 }
                 return Ok(());
             }
             println!("{reply}");
-            match reply.get("error") {
+            match horizon_body::control::reply_error(&reply) {
                 Some(e) => Err(e.as_str().unwrap_or("failed").to_string()),
                 None => Ok(()),
             }

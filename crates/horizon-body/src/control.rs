@@ -197,6 +197,12 @@ pub fn serve(body: Arc<Body>, path: &std::path::Path) -> Result<(), String> {
 
 /// Send one line to a body's socket and read its reply.
 #[cfg(unix)]
+/// The error in a reply, if any. `status` always carries an `"error"` field (null when the
+/// body is fine), so a null error is no error.
+pub fn reply_error(reply: &Value) -> Option<&Value> {
+    reply.get("error").filter(|e| !e.is_null())
+}
+
 pub fn request(path: &std::path::Path, line: &str) -> Result<Value, String> {
     use std::os::unix::net::UnixStream;
     let mut conn = UnixStream::connect(path).map_err(|e| {

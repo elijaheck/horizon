@@ -289,3 +289,14 @@ fn a_harness_drives_the_body_over_tcp_and_its_socket() {
     assert_eq!(reply["chat"][0]["text"], "<Elijahoak> !go");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn null_error_is_not_an_error() {
+    use serde_json::json;
+    assert!(crate::control::reply_error(&json!({ "error": null, "online": true })).is_none());
+    assert!(crate::control::reply_error(&json!({ "ok": true })).is_none());
+    assert_eq!(
+        crate::control::reply_error(&json!({ "error": "no such block" })),
+        Some(&json!("no such block"))
+    );
+}
