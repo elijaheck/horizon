@@ -22,6 +22,7 @@ members = [
     # The Model Context Protocol, shared by horizon-ctl, horizon-server and the launcher.
     "crates/horizon-mcp",
     "crates/horizon-server",
+    "crates/horizon-body",
     "crates/horizon-bots",
     "crates/horizon-assets",
     "crates/horizon-protocol",

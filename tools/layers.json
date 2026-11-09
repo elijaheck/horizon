@@ -58,6 +58,7 @@
     "horizon-telemetry": "horizon",
     "horizon-telemetry-server": "horizon",
 
+    "horizon-body": "tool",
     "horizon-bots": "tool",
     "horizon-mod-api-gen-tests": "tool",
     "xtask": "tool"
