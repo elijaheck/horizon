@@ -3,7 +3,7 @@
 //! into an `EntityRef`, and each `native_entity_*` helper reads the entity a
 //! handle names. On a server the entities are those of the level in place
 //! (the one a hook runs in) and the server's players, whatever their level.
-//! On a client (API @API:client_entity_refs@) they are the entities the
+//! On a client (API 428) they are the entities the
 //! server shows this window, read from what it synced: positions, rotations,
 //! types, UUIDs, custom names and equipment, never saved data or tags. With
 //! no world open, or for a handle of an earlier open (on a client, of an
@@ -58,7 +58,7 @@ impl Game<'_> {
     /// The entity `id` (the id events carry) as a handle for the `entity_*`
     /// methods: None with no world open, or for no such entity in the level
     /// in place or among the server's players. On a client (API
-    /// @API:client_entity_refs@), any entity the server shows this window,
+    /// 428), any entity the server shows this window,
     /// this window's own player included. API 373.
     pub(super) fn native_entity(&self, id: u32) -> Option<EntityRef> {
         let epoch = match &self.remote {

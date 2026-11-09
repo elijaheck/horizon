@@ -13,19 +13,19 @@ fn weather_flags((rain, thunder): (f32, f32)) -> (bool, bool) {
 
 impl Game<'_> {
     /// The world's seed (`WorldOptions.seed`), as `/seed` shows it. API
-    /// @API:level_world@.
+    /// 567.
     pub(super) fn native_level_seed(&self, level: LevelRef) -> Option<i64> {
         self.native_level_world(level)?;
         Some(self.level.seed)
     }
     /// The difficulty (`Level.getDifficulty`): `peaceful`, `easy`, `normal`
-    /// or `hard`, as `/difficulty` names it. API @API:level_world@.
+    /// or `hard`, as `/difficulty` names it. API 567.
     pub(super) fn native_level_difficulty(&self, level: LevelRef) -> Option<&'static str> {
         self.native_level_world(level)?;
         DIFFICULTIES.get(usize::from(self.ui.difficulty)).copied()
     }
     /// Game rule `rule` (`minecraft:keep_inventory` or `keep_inventory`), as
-    /// `/gamerule` queries it: None for an unknown rule. API @API:level_world@.
+    /// `/gamerule` queries it: None for an unknown rule. API 567.
     pub(super) fn native_level_game_rule(
         &self,
         level: LevelRef,
@@ -37,7 +37,7 @@ impl Game<'_> {
     }
     /// The rain and thunder levels, each 0.0 to 1.0 (`Level.getRainLevel`,
     /// `getThunderLevel`): both 0 in a level with no weather, as the Nether
-    /// and the End. API @API:level_world@.
+    /// and the End. API 567.
     pub(super) fn native_level_weather(&self, level: LevelRef) -> Option<(f32, f32)> {
         let world = self.native_level_world(level)?;
         if level.dimension() != super::Dim::Overworld.id() {
@@ -46,12 +46,12 @@ impl Game<'_> {
         Some(world.weather.levels(1.0))
     }
     /// Whether it rains (`Level.isRaining`: a rain level above 0.2). API
-    /// @API:level_world@.
+    /// 567.
     pub(super) fn native_level_is_raining(&self, level: LevelRef) -> Option<bool> {
         Some(weather_flags(self.native_level_weather(level)?).0)
     }
     /// Whether it thunders (`Level.isThundering`: a thunder level above 0.9).
-    /// API @API:level_world@.
+    /// API 567.
     pub(super) fn native_level_is_thundering(&self, level: LevelRef) -> Option<bool> {
         Some(weather_flags(self.native_level_weather(level)?).1)
     }

@@ -66,7 +66,7 @@ impl Game<'_> {
     /// The entities of the loaded level `dimension` inside the box from `min` to `max` (both corners included), by
     /// id, as `native_level_entities` lists them; players the hub holds are included. Empty for a level not loaded,
     /// and on a client. Walks every entity of the level: a mod calls it for a few boxes, not every tick. API
-    /// @API:entities_in@.
+    /// 592.
     pub(super) fn native_entities_in(
         &mut self,
         dimension: &str,
