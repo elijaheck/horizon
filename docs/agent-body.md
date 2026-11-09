@@ -34,4 +34,4 @@ The server must run with `online-mode=false` (bodies log in like `horizon-bots`)
 
 ## What it does not do
 
-It decodes no chunks and has no physics: `goto` flies through blocks, and `place` and `break` trust the caller about what is there. It cannot look, attack, open containers or use items. Those need a full client (`horizon-ctl`). The proper fix, bodies the server spawns itself with no connection at all, is the next step in the fork; this crate is the version that needs no server change.
+It decodes no chunks and has no physics: `goto` flies through blocks. `place` and `break` wait for the server's acknowledgement and read the block update it sends, so a refusal (spawn protection, permissions, an occupied spot) comes back as an error; `confirmed: false` means the server acknowledged without reporting the block. It cannot look, attack, open containers or use items. Those need a full client (`horizon-ctl`). The proper fix, bodies the server spawns itself with no connection at all, is the next step in the fork; this crate is the version that needs no server change.

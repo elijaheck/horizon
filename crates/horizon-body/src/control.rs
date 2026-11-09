@@ -93,13 +93,15 @@ fn run(body: &Body, line: &str) -> Result<Value, String> {
             let item = flag(&words, "--item")
                 .or_else(|| words.get(4).copied().filter(|w| !w.starts_with("--")))
                 .ok_or("place needs --item ITEM: a body holds nothing until told")?;
-            body.place(at, item)?;
-            Ok(json!({ "placed": item, "at": at }))
+            let outcome = body.place(at, item)?;
+            Ok(
+                json!({ "placed": item, "at": at, "confirmed": matches!(outcome, crate::Outcome::Now(_)) }),
+            )
         }
         "break" => {
             let at = block(&words)?;
-            body.break_block(at)?;
-            Ok(json!({ "broken": at }))
+            let outcome = body.break_block(at)?;
+            Ok(json!({ "broken": at, "confirmed": matches!(outcome, crate::Outcome::Now(_)) }))
         }
         "signedit" => {
             let at = block(&words)?;

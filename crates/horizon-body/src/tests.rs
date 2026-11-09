@@ -152,13 +152,16 @@ fn breaks_writes_signs_and_runs_commands_with_the_right_packets() {
     let (body, mut server) = connected();
     next(&mut server);
     next(&mut server);
-    body.break_block([1, 64, 2]).unwrap();
+    let b = body.clone();
+    let broke = thread::spawn(move || b.break_block([1, 64, 2]));
     let (id, payload) = next(&mut server);
     let play::Serverbound::PlayerAction(a) = play::Serverbound::decode(id, &payload).unwrap()
     else {
         panic!()
     };
     assert_eq!((a.action, a.pos), (0, [1, 64, 2]));
+    answer(&mut server, [1, 64, 2], 0, a.sequence);
+    assert_eq!(broke.join().unwrap(), Ok(Outcome::Now(0)));
 
     let reply = control::handle(&body, "signedit 1 64 1 tests: 3/4 | lamp row");
     assert!(reply.get("error").is_none(), "{reply}");
@@ -188,6 +191,42 @@ fn breaks_writes_signs_and_runs_commands_with_the_right_packets() {
     assert_eq!(
         c.command,
         "setblock 1 64 1 minecraft:redstone_lamp[lit=true]"
+    );
+}
+
+/// The server's answer to an action: the block's state now, then the acknowledgement.
+fn answer(server: &mut Connection, pos: [i32; 3], state: i32, sequence: i32) {
+    server
+        .send(&play::Clientbound::BlockUpdate(play::BlockUpdate { pos, state }).encode())
+        .unwrap();
+    server
+        .send(&play::Clientbound::BlockChangedAck(play::BlockChangedAck { sequence }).encode())
+        .unwrap();
+}
+
+#[test]
+fn a_refused_break_is_an_error_not_a_success() {
+    let (body, mut server) = connected();
+    next(&mut server);
+    next(&mut server);
+    let b = body.clone();
+    let broke = thread::spawn(move || b.break_block([0, 64, 1]));
+    let (id, payload) = next(&mut server);
+    let play::Serverbound::PlayerAction(a) = play::Serverbound::decode(id, &payload).unwrap()
+    else {
+        panic!()
+    };
+    answer(&mut server, [0, 64, 1], 2105, a.sequence);
+    let err = broke.join().unwrap().unwrap_err();
+    assert!(err.contains("refused to break at 0 64 1"), "{err}");
+}
+
+#[test]
+fn section_updates_unpack_to_world_positions() {
+    let packed = (5_i64 << 12) | (3 << 8) | (7 << 4) | 2;
+    assert_eq!(
+        section_changes([2, -4, -1], &[packed]),
+        vec![([35, -62, -9], 5)]
     );
 }
 

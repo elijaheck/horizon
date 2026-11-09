@@ -67,7 +67,23 @@ pub struct State {
     pub chat: VecDeque<(u64, String)>,
     pub chat_count: u64,
     pub error: Option<String>,
+    /// Block states the server reported since a command started watching them.
+    pub blocks: std::collections::HashMap<[i32; 3], i32>,
+    /// The highest action sequence the server acknowledged.
+    pub acked: i32,
 }
+
+/// What the server said about a block a command changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    /// The block now has this state id.
+    Now(i32),
+    /// The server acknowledged the action without reporting the block.
+    Unreported,
+}
+
+/// How long to wait for the server to acknowledge a place or a break.
+const ACK_WAIT: Duration = Duration::from_secs(3);
 
 pub struct Body {
     pub name: String,
@@ -317,6 +333,25 @@ impl Body {
                     }
                     Ok(())
                 }
+                cb::BLOCK_UPDATE | cb::SECTION_BLOCKS_UPDATE | cb::BLOCK_CHANGED_ACK => {
+                    match play::Clientbound::decode(id, &body) {
+                        Ok(play::Clientbound::BlockUpdate(u)) => {
+                            lock(&self.state).blocks.insert(u.pos, u.state);
+                        }
+                        Ok(play::Clientbound::SectionBlocksUpdate(u)) => {
+                            let mut s = lock(&self.state);
+                            for (pos, state) in section_changes(u.section, &u.changes) {
+                                s.blocks.insert(pos, state);
+                            }
+                        }
+                        Ok(play::Clientbound::BlockChangedAck(a)) => {
+                            let mut s = lock(&self.state);
+                            s.acked = s.acked.max(a.sequence);
+                        }
+                        _ => {}
+                    }
+                    Ok(())
+                }
                 cb::DISCONNECT => return self.drop_out("disconnected by the server".into()),
                 cb::START_CONFIGURATION => {
                     return self.drop_out("sent back to configuration".into());
@@ -403,7 +438,7 @@ impl Body {
     }
 
     /// Place `item` (a registry name such as `minecraft:stone` or `stone`) at `block`, in creative.
-    pub fn place(&self, block: [i32; 3], item: &str) -> Result<(), String> {
+    pub fn place(&self, block: [i32; 3], item: &str) -> Result<Outcome, String> {
         let items = self
             .items
             .as_ref()
@@ -426,6 +461,7 @@ impl Body {
             .encode(),
         )?;
         self.send(play::Serverbound::SetCarriedItem(play::SetCarriedItem { slot: 0 }).encode())?;
+        let sequence = self.watch(block);
         self.send(
             play::Serverbound::UseItemOn(play::UseItemOn {
                 hand: 0,
@@ -434,24 +470,61 @@ impl Body {
                 cursor: [0.5, 1.0, 0.5],
                 inside: false,
                 world_border: false,
-                sequence: self.sequence.fetch_add(1, Ordering::SeqCst),
+                sequence,
             })
             .encode(),
-        )
+        )?;
+        match self.outcome(block, sequence)? {
+            Outcome::Now(0) => Err(refused("place", block)),
+            other => Ok(other),
+        }
+    }
+
+    /// Start watching `block` for the server's answer; returns the action's sequence number.
+    fn watch(&self, block: [i32; 3]) -> i32 {
+        lock(&self.state).blocks.remove(&block);
+        self.sequence.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Wait for the server to acknowledge `sequence`, then say what it reported for `block`.
+    fn outcome(&self, block: [i32; 3], sequence: i32) -> Result<Outcome, String> {
+        let until = Instant::now() + ACK_WAIT;
+        loop {
+            if !self.online.load(Ordering::SeqCst) {
+                return Err(self.why_offline());
+            }
+            let s = lock(&self.state);
+            if s.acked >= sequence {
+                return Ok(s
+                    .blocks
+                    .get(&block)
+                    .map_or(Outcome::Unreported, |&id| Outcome::Now(id)));
+            }
+            drop(s);
+            if Instant::now() > until {
+                return Err("the server did not acknowledge the action".into());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 
     /// Break the block at `block`; creative breaks on the first hit.
-    pub fn break_block(&self, block: [i32; 3]) -> Result<(), String> {
+    pub fn break_block(&self, block: [i32; 3]) -> Result<Outcome, String> {
         self.approach(block)?;
+        let sequence = self.watch(block);
         self.send(
             play::Serverbound::PlayerAction(play::PlayerAction {
                 action: 0,
                 pos: block,
                 direction: 1,
-                sequence: self.sequence.fetch_add(1, Ordering::SeqCst),
+                sequence,
             })
             .encode(),
-        )
+        )?;
+        match self.outcome(block, sequence)? {
+            Outcome::Now(id) if id != 0 => Err(refused("break", block)),
+            other => Ok(other),
+        }
     }
 
     /// Write the four lines of the sign at `block` (front side).
@@ -511,6 +584,25 @@ impl Body {
             .cloned()
             .collect()
     }
+}
+
+fn refused(what: &str, [x, y, z]: [i32; 3]) -> String {
+    format!(
+        "the server refused to {what} at {x} {y} {z}: spawn protection, permissions, or the spot was not free"
+    )
+}
+
+/// The positions and states in a section update (`ClientboundSectionBlocksUpdatePacket`):
+/// each entry packs the state above 12 bits and the local x, z, y in 4 bits each.
+pub fn section_changes(section: [i32; 3], changes: &[i64]) -> Vec<([i32; 3], i32)> {
+    changes
+        .iter()
+        .map(|&v| {
+            let local = [(v >> 8) & 15, v & 15, (v >> 4) & 15];
+            let pos = std::array::from_fn(|i| section[i] * 16 + local[i] as i32);
+            (pos, (v >> 12) as i32)
+        })
+        .collect()
 }
 
 /// One tick of flight from `pos` toward `goal`: at most [`STEP`], landing exactly on it.
